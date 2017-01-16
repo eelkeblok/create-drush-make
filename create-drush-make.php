@@ -117,7 +117,7 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
    */
   public function writeCore($version, $patches) {
     wl('  drupal:');
-    wl('    version: ' . $version);
+    wl("    version: '" . $version . "'");
 
     $this->writePatches($patches, 'drupal', PATCH_PATH . '/core');
   }
@@ -141,7 +141,7 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
    */
   public function writeModule($module, $version, $patches) {
     wl('  ' . $module . ':');
-    wl('    version: ' . $version);
+    wl("    version: '" . $version . "'");
 
     $this->writePatches($patches, $module, 'patches/contrib/' . $module);
   }
