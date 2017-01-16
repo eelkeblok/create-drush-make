@@ -90,6 +90,64 @@ class LegacyMakeFileWriter implements MakeFileWriterInterface {
 
 }
 
+/**
+ * Class YmlMakeFileWriter.
+ *
+ * Fancy new Yml makefiles.
+ */
+class YmlMakeFileWriter implements MakeFileWriterInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writePreface() {
+    wl("core: '7.x'");
+    wl("api: 2");
+    wl("defaults:");
+    wl("  projects:");
+    wl("    subdir: 'contrib'");
+    wl();
+    wl('projects:');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writeCore($version, $patches) {
+    global $patch_path;
+
+    wl('  drupal:');
+    wl('    version: ' . $version);
+
+    $this->writePatches($patches, 'drupal', $patch_path . '/core');
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writePatches($patches, $project, $path) {
+    if (!empty($patches)) {
+      wl('    patches:');
+      foreach ($patches as $file) {
+        if (strpos($file, '.patch')) {
+          wl('      - ' . $path . '/' . $file . '"');
+        }
+      }
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writeModule($module, $version, $patches) {
+    wl('  ' . $module . ':');
+    wl('    version: ' . $version);
+
+    $this->writePatches($patches, $module, 'patches/contrib/' . $module);
+  }
+
+}
+
 // See if we should be generating legacy format or yml format.
 $format = 'legacy';
 $patch_path = 'patches';
@@ -101,7 +159,17 @@ foreach ($argv as $value) {
   }
 }
 
-$writer = new LegacyMakeFileWriter();
+$writer = NULL;
+
+switch ($format) {
+  case 'legacy':
+    $writer = new LegacyMakeFileWriter();
+    break;
+
+  case 'yml':
+    $writer = new YmlMakeFileWriter();
+}
+
 $writer->writePreface();
 
 // Determine Drupal core version.
