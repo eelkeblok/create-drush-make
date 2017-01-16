@@ -1,4 +1,8 @@
 <?php
+
+define('PATCH_PATH', 'patches');
+define('DOCROOT', 'docroot');
+
 /**
  * Interface MakeFileWriterInterface.
  *
@@ -50,15 +54,13 @@ class LegacyMakeFileWriter implements MakeFileWriterInterface {
    * {@inheritdoc}
    */
   public function writeCore($version, $patches) {
-    global $patch_path;
-
     $p = 'projects[drupal]';
     wl($p . '[type] = "core"');
     wl($p . '[subdir] = ""');
     wl($p . '[directory_name] = ""');
     wl($p . '[version] = "' . $version . '"');
 
-    $this->writePatches($patches, 'drupal', $patch_path . '/core');
+    $this->writePatches($patches, 'drupal', PATCH_PATH . '/core');
 
     // Blank line after the core entry.
     wl();
@@ -114,12 +116,10 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
    * {@inheritdoc}
    */
   public function writeCore($version, $patches) {
-    global $patch_path;
-
     wl('  drupal:');
     wl('    version: ' . $version);
 
-    $this->writePatches($patches, 'drupal', $patch_path . '/core');
+    $this->writePatches($patches, 'drupal', PATCH_PATH . '/core');
   }
 
   /**
@@ -130,7 +130,7 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
       wl('    patches:');
       foreach ($patches as $file) {
         if (strpos($file, '.patch')) {
-          wl('      - ' . $path . '/' . $file . '"');
+          wl('      - ' . $path . '/' . $file);
         }
       }
     }
@@ -150,8 +150,6 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
 
 // See if we should be generating legacy format or yml format.
 $format = 'legacy';
-$patch_path = 'patches';
-$docroot = 'docroot';
 
 foreach ($argv as $value) {
   if (strpos($value, 'yml') !== FALSE) {
@@ -173,20 +171,20 @@ switch ($format) {
 $writer->writePreface();
 
 // Determine Drupal core version.
-$bootstrap_inc = file_get_contents($docroot . '/includes/bootstrap.inc');
+$bootstrap_inc = file_get_contents(DOCROOT . '/includes/bootstrap.inc');
 $matches = array();
 
 preg_match("/define\\('VERSION', '(\\d.\\d\\d)'\\);/", $bootstrap_inc, $matches);
 
 // Find patches in the patches directory for core.
-$patches = findPatches('drupal', $patch_path . '/core');
+$patches = findPatches(PATCH_PATH . '/core');
 
 $writer->writeCore($matches[1], $patches);
 
 // Find all contrib modules and their versions and patches. Note that we are
 // assuming directory names == project names (which not necessarily equals
 // module names).
-$contrib_dir = $docroot . '/sites/all/modules/contrib';
+$contrib_dir = DOCROOT . '/sites/all/modules/contrib';
 $modules = scandir($contrib_dir);
 
 foreach ($modules as $module) {
@@ -203,7 +201,7 @@ foreach ($modules as $module) {
           $version = $matches[1];
 
           // See if we have any patches for this module.
-          $patches = findPatches($module, 'patches/contrib/' . $module);
+          $patches = findPatches(PATCH_PATH . '/contrib/' . $module);
 
           $writer->writeModule($module, $version, $patches);
           // Only process a single .info file per directory. We'll assume each
@@ -228,20 +226,15 @@ function wl($string = '') {
 /**
  * Find patches for a project.
  *
- * @param string $project
- *    The name of the project.
  * @param string $path
- *    The path to search for patches. This should be relative to the sites/all
- *    directory in the flat project.
+ *    The path to search for patches.
  *
  */
-function findPatches($project, $path) {
-  // Find patches in the patches directory for core.
-  $dir = 'sites/all/' . $path;
+function findPatches($path) {
   $files = [];
 
-  if (is_dir($dir)) {
-    $files = scandir($dir);
+  if (is_dir($path)) {
+    $files = scandir($path);
   }
 
   return $files;
