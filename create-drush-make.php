@@ -1,4 +1,95 @@
 <?php
+/**
+ * Interface MakeFileWriterInterface.
+ *
+ * Interface to capture the commonalities between make files.
+ */
+interface MakeFileWriterInterface {
+
+  /**
+   * Write the start of the file.
+   */
+  public function writePreface();
+
+  /**
+   * Write information for the core project.
+   */
+  public function writeCore($version, $patches);
+
+  /**
+   * Write patches for a project.
+   */
+  public function writePatches($patches, $project, $path);
+
+  /**
+   * Write a module project.
+   */
+  public function writeModule($module, $version, $patches);
+
+}
+
+/**
+ * Class LegacyMakeFileWriter.
+ *
+ * Old fashioned makefiles using the ini-like format.
+ */
+class LegacyMakeFileWriter implements MakeFileWriterInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writePreface() {
+    wl('core = 7.x');
+    wl('defaults[projects][subdir] = contrib');
+    wl();
+    wl('api = 2');
+    wl();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writeCore($version, $patches) {
+    global $patch_path;
+
+    $p = 'projects[drupal]';
+    wl($p . '[type] = "core"');
+    wl($p . '[subdir] = ""');
+    wl($p . '[directory_name] = ""');
+    wl($p . '[version] = "' . $version . '"');
+
+    $this->writePatches($patches, 'drupal', $patch_path . '/core');
+
+    // Blank line after the core entry.
+    wl();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writePatches($patches, $project, $path) {
+    foreach ($patches as $file) {
+      if (strpos($file, '.patch')) {
+        wl('projects[' . $project . '][patch][] = "' . $path . '/' . $file . '"');
+      }
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writeModule($module, $version, $patches) {
+    $p = 'projects[' . $module . ']';
+    wl($p . '[version]  = "' . $version . '"');
+
+    $this->writePatches($patches, $module, 'patches/contrib/' . $module);
+
+    // Blank line at the end of the entry.
+    wl();
+  }
+
+}
+
 // See if we should be generating legacy format or yml format.
 $format = 'legacy';
 $patch_path = 'patches';
@@ -10,7 +101,8 @@ foreach ($argv as $value) {
   }
 }
 
-writePreface();
+$writer = new LegacyMakeFileWriter();
+$writer->writePreface();
 
 // Determine Drupal core version.
 $bootstrap_inc = file_get_contents($docroot . '/includes/bootstrap.inc');
@@ -21,7 +113,7 @@ preg_match("/define\\('VERSION', '(\\d.\\d\\d)'\\);/", $bootstrap_inc, $matches)
 // Find patches in the patches directory for core.
 $patches = findPatches('drupal', $patch_path . '/core');
 
-writeCore($matches[1], $patches);
+$writer->writeCore($matches[1], $patches);
 
 // Find all contrib modules and their versions and patches. Note that we are
 // assuming directory names == project names (which not necessarily equals
@@ -45,7 +137,7 @@ foreach ($modules as $module) {
           // See if we have any patches for this module.
           $patches = findPatches($module, 'patches/contrib/' . $module);
 
-          writeModule($module, $version, $patches);
+          $writer->writeModule($module, $version, $patches);
           // Only process a single .info file per directory. We'll assume each
           // one contains the same version.
           break;
@@ -85,45 +177,4 @@ function findPatches($project, $path) {
   }
 
   return $files;
-}
-
-function writePreface() {
-  wl('core = 7.x');
-  wl('defaults[projects][subdir] = contrib');
-  wl();
-  wl('api = 2');
-  wl();
-}
-
-function writeCore($version, $patches) {
-  global $patch_path;
-
-  $p = 'projects[drupal]';
-  wl($p . '[type] = "core"');
-  wl($p . '[subdir] = ""');
-  wl($p . '[directory_name] = ""');
-  wl($p . '[version] = "' . $version . '"');
-
-  writePatches($patches, 'drupal', $patch_path . '/core');
-
-  // Blank line after the core entry.
-  wl();
-}
-
-function writePatches($patches, $project, $path) {
-  foreach ($patches as $file) {
-    if (strpos($file, '.patch')) {
-      wl('projects[' . $project . '][patch][] = "' . $path . '/' . $file . '"');
-    }
-  }
-}
-
-function writeModule($module, $version, $patches) {
-  $p = 'projects[' . $module . ']';
-  wl($p . '[version]  = "' . $version . '"');
-
-  writePatches($patches, $module, 'patches/contrib/' . $module);
-
-  // Blank line at the end of the entry.
-  wl();
 }
