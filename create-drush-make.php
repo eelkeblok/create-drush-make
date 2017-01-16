@@ -127,7 +127,7 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
    */
   public function writePatches($patches, $project, $path) {
     if (!empty($patches)) {
-      wl('    patches:');
+      wl('    patch:');
       foreach ($patches as $file) {
         if (strpos($file, '.patch')) {
           wl('      - ' . $path . '/' . $file);
