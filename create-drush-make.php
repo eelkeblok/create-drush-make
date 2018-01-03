@@ -1,7 +1,7 @@
 <?php
 
-define('PATCH_PATH', 'patches');
-define('DOCROOT', 'docroot');
+define('PATCH_PATH', 'sites/all/patches');
+define('DOCROOT', '.');
 
 /**
  * Interface MakeFileWriterInterface.
