@@ -28,7 +28,7 @@ interface MakeFileWriterInterface {
   /**
    * Write a module project.
    */
-  public function writeModule($module, $version, $patches);
+  public function writeModule(ProjectInfo $module, $version, $patches);
 
 }
 
@@ -80,11 +80,11 @@ class LegacyMakeFileWriter implements MakeFileWriterInterface {
   /**
    * {@inheritdoc}
    */
-  public function writeModule($module, $version, $patches) {
-    $p = 'projects[' . $module . ']';
+  public function writeModule(ProjectInfo $module, $version, $patches) {
+    $p = 'projects[' . $module->getMachineName() . ']';
     wl($p . '[version]  = "' . $version . '"');
 
-    $this->writePatches($patches, $module, 'patches/contrib/' . $module);
+    $this->writePatches($patches, $module->getMachineName(), 'patches/contrib/' . $module->getMachineName());
 
     // Blank line at the end of the entry.
     wl();
@@ -139,21 +139,103 @@ class YmlMakeFileWriter implements MakeFileWriterInterface {
   /**
    * {@inheritdoc}
    */
-  public function writeModule($module, $version, $patches) {
-    wl('  ' . $module . ':');
+  public function writeModule(ProjectInfo $module, $version, $patches) {
+    wl('  ' . $module->getMachineName() . ':');
     wl("    version: '" . $version . "'");
 
-    $this->writePatches($patches, $module, 'patches/contrib/' . $module);
+    $this->writePatches($patches, $module->getMachineName(), 'patches/contrib/' . $module->getMachineName());
   }
 
 }
 
-// See if we should be generating legacy format or yml format.
+/**
+ * Class CsvFileWriter.
+ *
+ * No drush make file, actually, just a csv file containing module information.
+ */
+class CsvFileWriter implements MakeFileWriterInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writePreface() {
+    // Nothing to do here.
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writeCore($version, $patches) {
+    wl("\"Drupal\";\"$version\";\"https://drupal.org/project/drupal\"");
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writeModule(ProjectInfo $module, $version, $patches) {
+    wl("\"{$module->getFriendlyName()}\";\"$version\";\"https://drupal.org/project/{$module->getMachineName()}\"");
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function writePatches($patches, $project, $path) {
+    // Nothing to do here.
+  }
+
+}
+
+/**
+ * Class ProjectInfo.
+ *
+ * Class to contain information about a project (module, theme, ...).
+ */
+class ProjectInfo {
+  private $version;
+  private $machineName;
+  private $friendlyName;
+
+  /**
+   * Constructor.
+   */
+  public function __construct($machineName, $version, $friendlyName) {
+    $this->machineName = $machineName;
+    $this->version = $version;
+    $this->friendlyName = $friendlyName;
+  }
+
+  /**
+   * Get the version string.
+   */
+  public function getVersion() {
+    return $this->version;
+  }
+
+  /**
+   * Get the friendly name.
+   */
+  public function getFriendlyName() {
+    return $this->friendlyName;
+  }
+
+  /**
+   * Get the machine name.
+   */
+  public function getMachineName() {
+    return $this->machineName;
+  }
+
+}
+
+// See which format we should be generating.
 $format = 'legacy';
 
 foreach ($argv as $value) {
   if (strpos($value, 'yml') !== FALSE) {
     $format = 'yml';
+  }
+  elseif (strpos($value, 'csv') !== FALSE) {
+    $format = 'csv';
   }
 }
 
@@ -166,6 +248,11 @@ switch ($format) {
 
   case 'yml':
     $writer = new YmlMakeFileWriter();
+    break;
+
+  case 'csv':
+    $writer = new CsvFileWriter();
+    break;
 }
 
 $writer->writePreface();
@@ -196,18 +283,31 @@ foreach ($modules as $module) {
       if (strpos($file, '.info')) {
         $info = file_get_contents($contrib_dir . '/' . $module . '/' . $file);
         $matches = array();
+
+        // Find the version.
+        $version = '';
         if (preg_match('/version = "?7\.x-(\d.\d{1,2}(-[a-zA-Z0-9]*)?)"?/', $info, $matches)) {
           // If we found a version string, build the project entry.
           $version = $matches[1];
-
-          // See if we have any patches for this module.
-          $patches = findPatches(PATCH_PATH . '/contrib/' . $module);
-
-          $writer->writeModule($module, $version, $patches);
-          // Only process a single .info file per directory. We'll assume each
-          // one contains the same version.
-          break;
         }
+
+        // See if we have any patches for this module.
+        $patches = findPatches(PATCH_PATH . '/contrib/' . $module);
+
+        // Find the friendly name.
+        $friendlyName = '';
+        if (preg_match('/name = "?(.*)"?/', $info, $matches)) {
+          // If we found a version string, build the project entry.
+          $friendlyName = $matches[1];
+        }
+
+        $module = new ProjectInfo($module, $version, $friendlyName);
+
+        $writer->writeModule($module, $version, $patches);
+
+        // Only process a single .info file per directory. We'll assume each
+        // one contains the same version.
+        break;
       }
     }
   }
